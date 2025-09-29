@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Joguinho ODS — Colete e Aprenda</title>
+<style>
+  :root{
+    --bg:#0f1724;
+    --panel:#0b1220;
+    --accent:#22c1c3;
+    --text:#eef2f7;
+    --muted:#9aa6b2;
+    --card-radius:12px;
+    font-family: Inter, Roboto, Arial, sans-serif;
+  }
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#071024,var(--bg));color:var(--text)}
+  .wrap{max-width:1000px;margin:24px auto;padding:16px;display:grid;grid-template-columns:320px 1fr;gap:16px}
+  .panel{
+    background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border-radius:var(--card-radius);padding:16px;box-shadow:0 6px 18px rgba(2,6,23,0.6);
+  }
+  h1{font-size:20px;margin:0 0 8px}
+  p.small{font-size:13px;color:var(--muted);margin:4px 0 12px}
+  #canvasWrap{display:flex;flex-direction:column;gap:12px}
+  canvas{background:linear-gradient(180deg,#0a2130,#07202b);border-radius:8px;display:block;width:100%;height:500px}
+  .hud{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .chip{background:#071827;padding:8px 10px;border-radius:8px;color:var(--text);font-weight:600}
+  .btn{appearance:none;border:0;padding:10px 12px;border-radius:8px;background:linear-gradient(180deg,var(--accent),#17a9a9);color:#042025;font-weight:700;cursor:pointer}
+  .btn.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--text)}
+  .center{display:flex;align-items:center;justify-content:center}
+  .legend{display:flex;flex-direction:column;gap:6px;margin-top:12px;font-size:13px}
+  .legend-item{display:flex;gap:8px;align-items:center}
+  .colorbox{width:18px;height:18px;border-radius:4px}
+  footer{grid-column:1/-1;color:var(--muted);font-size:13px;margin-top:8px;text-align:center}
+  /* modal */
+  .modal-back{position:fixed;inset:0;background:rgba(2,6,12,0.6);display:none;align-items:center;justify-content:center;z-index:50}
+  .modal{background:linear-gradient(180deg,#0b1220,#081018);padding:18px;width:520px;border-radius:12px;color:var(--text);box-shadow:0 10px 30px rgba(2,6,23,0.7)}
+  .q-title{font-weight:800;margin-bottom:8px}
+  .q-body{color:var(--muted);margin-bottom:12px}
+  .answers{display:flex;flex-direction:column;gap:8px}
+  button.answer{padding:10px;border-radius:8px;border:0;background:#0a2b2f;color:var(--text);font-weight:700;cursor:pointer}
+  .small-muted{font-size:12px;color:var(--muted)}
+  @media(max-width:900px){
+    .wrap{grid-template-columns:1fr; padding:12px}
+    canvas{height:420px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <aside class="panel">
+    <h1>Jogo ODS — Colete e Aprenda</h1>
+    <p class="small">Movimente-se com <strong>← ↑ → ↓</strong> ou <strong>W A S D</strong>. Colete os tokens ODS, responda perguntas e acumule pontos. Cada nível representa um ODS diferente com perguntas educativas.</p>
+
+    <div class="hud">
+      <div class="chip">Nível: <span id="levelLabel">1</span></div>
+      <div class="chip">Pontos: <span id="score">0</span></div>
+      <div class="chip">Tempo: <span id="timer">120</span>s</div>
+    </div>
+
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="btn" id="startBtn">Iniciar / Reiniciar</button>
+      <button class="btn secondary" id="pauseBtn">Pausar</button>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="colorbox" style="background:#00bcd4"></div><div>Token ODS — responda pergunta</div></div>
+      <div class="legend-item"><div class="colorbox" style="background:#ef4444"></div><div>Lixo/Obstáculo — perde tempo</div></div>
+      <div class="legend-item"><div class="colorbox" style="background:#facc15"></div><div>Bonus — tempo extra</div></div>
+    </div>
+
+    <hr style="border:none;border-top:1px solid rgba(255,255,255,0.03);margin:14px 0">
+
+    <div>
+      <h3 style="margin:0 0 6px">ODS no jogo</h3>
+      <p class="small-muted">Nível 1 — Água Limpa (ODS 6)</p>
+      <p class="small-muted">Nível 2 — Fome Zero (ODS 2)</p>
+      <p class="small-muted">Nível 3 — Ação Climática (ODS 13)</p>
+    </div>
+
+    <hr style="border:none;border-top:1px solid rgba(255,255,255,0.03);margin:14px 0">
+
+    <div>
+      <h3 style="margin:0 0 6px">Controles</h3>
+      <p class="small-muted">Movimento: setas / WASD</p>
+      <p class="small-muted">Pausa: botão "Pausar"</p>
+    </div>
+  </aside>
+
+  <main class="panel" id="canvasWrap">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="display:flex;gap:12px;align-items:center">
+        <svg width="42" height="42" viewBox="0 0 24 24" fill="none" aria-hidden>
+          <circle cx="12" cy="12" r="10" stroke="#22c1c3" stroke-width="1.6"></circle>
+          <path d="M8 12l2 2 4-4" stroke="#22c1c3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div>
+          <div style="font-weight:800">Partida Rápida</div>
+          <div style="font-size:13px;color:var(--muted)">Colete tokens e responda perguntas</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="small-muted" style="font-size:13px">Objetivo: coletar 3 tokens / nível</div>
+      </div>
+    </div>
+
+    <canvas id="gameCanvas" width="900" height="500" aria-label="Área de jogo"></canvas>
+
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="small-muted">Dica: responda com atenção — perguntas trazem contexto dos ODS.</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn secondary" id="muteBtn">Mudo (sem som)</button>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal-back" id="modalBack" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal" id="modal">
+      <div class="q-title" id="qTitle">Pergunta</div>
+      <div class="q-body" id="qBody">Corpo da pergunta</div>
+      <div class="answers" id="answers"></div>
+      <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
+        <div class="small-muted" id="qInfo">ODS: Água Limpa</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn secondary" id="skipBtn">Pular (perde tempo)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Desenvolvido como protótipo educativo • Conteúdo ODS adaptado para demonstração.
+  </footer>
+</div>
+
+<script>
+/*
+ Joguinho ODS — Ficheiro único
+ Autor: ChatGPT (exemplo educacional)
+ Comentários: código comentado em português para facilitar customização.
+*/
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const startBtn = document.getElementById('startBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const muteBtn = document.getElementById('muteBtn');
+const levelLabel = document.getElementById('levelLabel');
+const scoreLabel = document.getElementById('score');
+const timerLabel = document.getElementById('timer');
+
+const modalBack = document.getElementById('modalBack');
+const qTitle = document.getElementById('qTitle');
+const qBody = document.getElementById('qBody');
+const answersDiv = document.getElementById('answers');
+const qInfo = document.getElementById('qInfo');
+const skipBtn = document.getElementById('skipBtn');
+
+let width = canvas.width;
+let height = canvas.height;
+
+let game = null;
+
+// Perguntas por nível (simples para exemplo). Você pode adicionar mais.
+const LEVELS = [
+  {
+    id:1,
+    name:'Água Limpa (ODS 6)',
+    color:'#00bcd4',
+    questions:[
+      {q:'Qual é uma ação para proteger recursos hídricos?', choices:['Despejar lixo nos rios','Economizar água','Construir fossas próximo a rios'], a:1},
+      {q:'O que reduz poluição de água?', choices:['Tratamento de esgoto','Descarga direta de fábricas','Lavar carros no rio'], a:0},
+      {q:'Água potável é importante para:', choices:['Saúde pública','Aumentar poluição','Diminuir agricultura'], a:0}
+    ]
+  },
+  {
+    id:2,
+    name:'Fome Zero (ODS 2)',
+    color:'#f97316',
+    questions:[
+      {q:'Qual prática ajuda reduzir fome?', choices:['Desperdício de alimentos','Fechar mercados locais','Adoção de agricultura sustentável'], a:2},
+      {q:'Alimentos nutritivos contribuem para:', choices:['Saúde melhor','Mais poluição','Menos educação'], a:0},
+      {q:'Doação de excedentes alimentares:', choices:['Ajuda comunidades','Aumenta fome','É sempre ruim'], a:0}
+    ]
+  },
+  {
+    id:3,
+    name:'Ação Climática (ODS 13)',
+    color:'#0ea5a4',
+    questions:[
+      {q:'Uma ação contra mudanças climáticas é:', choices:['Plantio de árvores','Aumento do desmatamento','Queimar resíduos indiscriminadamente'], a:0},
+      {q:'Reduzir emissões significa:', choices:['Menos gases poluentes','Mais gases poluentes','Ignorar transporte público'], a:0},
+      {q:'Adaptação climática inclui:', choices:['Planejar cidades resilientes','Construir em áreas de risco','Ignorar recursos naturais'], a:0}
+    ]
+  }
+];
+
+// Som simples (opcional), mantemos mutado por padrão
+let SOUND_ON = false;
+function beep(f=440,d=0.06){ if(!SOUND_ON) return; try{
+  const ctxa = new (window.AudioContext || window.webkitAudioContext)();
+  const o = ctxa.createOscillator();
+  const g = ctxa.createGain();
+  o.connect(g); g.connect(ctxa.destination);
+  o.type='sine'; o.frequency.value=f;
+  g.gain.value=0.05;
+  o.start();
+  setTimeout(()=>{ o.stop(); ctxa.close?.(); }, d*1000);
+}catch(e){/* som pode falhar em algumas abas */}}
+muteBtn.addEventListener('click', ()=>{ SOUND_ON = !SOUND_ON; muteBtn.textContent = SOUND_ON ? 'Som: ON' : 'Mudo (sem som)'; });
+
+// Utilitários
+function rand(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+function distance(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.sqrt(dx*dx+dy*dy); }
+
+// Entidades do jogo
+class Player {
+  constructor(){
+    this.x = width*0.12;
+    this.y = height/2;
+    this.r = 14;
+    this.speed = 3.4;
+    this.vx = 0; this.vy = 0;
+  }
+  update(){
+    this.x += this.vx;
+    this.y += this.vy;
+    // limites
+    this.x = Math.max(this.r, Math.min(width - this.r, this.x));
+    this.y = Math.max(this.r, Math.min(height - this.r, this.y));
+  }
+  draw(){
+    // corpo
+    ctx.save();
+    ctx.beginPath();
+    const g = ctx.createRadialGradient(this.x-6,this.y-6,3,this.x,this.y,30);
+    g.addColorStop(0,'#fefefe'); g.addColorStop(1,'#b2f7f7');
+    ctx.fillStyle = g;
+    ctx.arc(this.x,this.y,this.r,0,Math.PI*2);
+    ctx.fill();
+    // olho
+    ctx.fillStyle='#05323b'; ctx.beginPath(); ctx.arc(this.x+4,this.y-3,3,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+class Token {
+  constructor(x,y,color,levelIndex,questionIndex){
+    this.x=x; this.y=y; this.size=18;
+    this.color=color; this.collected=false;
+    this.levelIndex = levelIndex;
+    this.questionIndex = questionIndex;
+  }
+  draw(){
+    if(this.collected) return;
+    ctx.save();
+    ctx.translate(this.x,this.y);
+    // token com símbolo de ODS (círculo e onda)
+    ctx.fillStyle=this.color;
+    roundRect(ctx,-this.size/2,-this.size/2,this.size,this.size,6);
+    ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.95)';
+    ctx.beginPath();
+    ctx.arc(0, -2, 4, 0, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-6,6); ctx.quadraticCurveTo(0,0,6,6); ctx.strokeStyle='rgba(255,255,255,0.75)'; ctx.lineWidth=2; ctx.stroke();
+    ctx.restore();
+  }
+}
+
+class Obstacle {
+  constructor(x,y){
+    this.x=x; this.y=y; this.size=26;
+  }
+  draw(){
+    ctx.save();
+    ctx.translate(this.x,this.y);
+    ctx.fillStyle = '#ef4444';
+    roundRect(ctx,-this.size/2,-this.size/2,this.size,this.size,6);
+    ctx.fill();
+    ctx.fillStyle='rgba(0,0,0,0.15)';
+    ctx.fillRect(-8,-8,16,16);
+    ctx.restore();
+  }
+}
+
+class Bonus {
+  constructor(x,y){
+    this.x=x; this.y=y; this.size=16;
+  }
+  draw(){
+    ctx.save();
+    ctx.translate(this.x,this.y);
+    ctx.fillStyle='#facc15';
+    ctx.beginPath();
+    ctx.moveTo(0,-8); ctx.lineTo(3,-1); ctx.lineTo(10,-1); ctx.lineTo(4,2); ctx.lineTo(6,9); ctx.lineTo(0,4); ctx.lineTo(-6,9); ctx.lineTo(-4,2); ctx.lineTo(-10,-1); ctx.lineTo(-3,-1);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+}
+
+// Util: desenhar rect com cantos arredondados
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+// Classe principal do jogo
+class Game {
+  constructor(){
+    this.reset();
+  }
+  reset(){
+    this.levelIndex = 0;
+    this.score = 0;
+    this.time = 120; // segundos de exemplo
+    this.player = new Player();
+    this.tokens = [];
+    this.obstacles = [];
+    this.bonuses = [];
+    this.running = false;
+    this.paused = false;
+    this.tokenGoal = 3; // tokens para passar de nível
+    this.collectedThisLevel = 0;
+    this.spawnEntities();
+    levelLabel.textContent = this.levelIndex+1;
+    scoreLabel.textContent = this.score;
+    timerLabel.textContent = this.time;
+    this.lastTick = performance.now();
+  }
+
+  spawnEntities(){
+    this.tokens = [];
+    this.obstacles = [];
+    this.bonuses = [];
+    // spawn tokens com perguntas do nível (aleatório)
+    const lvl = LEVELS[this.levelIndex];
+    const qcount = Math.min(this.tokenGoal, lvl.questions.length);
+    const used = [];
+    for(let i=0;i<qcount;i++){
+      let qi;
+      do{ qi = rand(0,lvl.questions.length-1); } while(used.includes(qi));
+      used.push(qi);
+      const x = rand(width*0.35, width-50);
+      const y = rand(40, height-40);
+      this.tokens.push(new Token(x,y,lvl.color,this.levelIndex,qi));
+    }
+    // obstáculos
+    for(let i=0;i<6;i++){
+      this.obstacles.push(new Obstacle(rand(width*0.3+20,width-40), rand(30,height-30)));
+    }
+    // bonuses
+    for(let i=0;i<2;i++){
+      this.bonuses.push(new Bonus(rand(width*0.35,width-50), rand(40,height-40)));
+    }
+    this.collectedThisLevel = 0;
+  }
+
+  start(){
+    this.running = true; this.paused = false;
+    this.lastTick = performance.now();
+    beep(660,0.06);
+    requestAnimationFrame(()=>this.loop());
+  }
+
+  pause(){
+    this.paused = !this.paused;
+  }
+
+  loop(){
+    if(!this.running) return;
+    if(this.paused){ this.lastTick = performance.now(); requestAnimationFrame(()=>this.loop()); return; }
+    const now = performance.now();
+    const dt = (now - this.lastTick)/1000;
+    this.lastTick = now;
+    this.update(dt);
+    this.draw();
+    if(this.time <= 0){
+      this.endGame();
+      return;
+    }
+    requestAnimationFrame(()=>this.loop());
+  }
+
+  update(dt){
+    // atualização do timer
+    this.time -= dt;
+    timerLabel.textContent = Math.max(0, Math.floor(this.time));
+    // mover jogador
+    this.player.update();
+    // colisões com tokens
+    for(const t of this.tokens){
+      if(t.collected) continue;
+      if(distance({x:this.player.x,y:this.player.y},t) < this.player.r + t.size/2){
+        // pausa e abre pergunta
+        this.running = false;
+        t.collected = true;
+        this.showQuestion(t);
+        return;
+      }
+    }
+    // colisões com obstáculos
+    for(const o of this.obstacles){
+      if(distance({x:this.player.x,y:this.player.y},o) < this.player.r + o.size/2 - 2){
+        // penalidade: perde 6 segundos
+        this.time = Math.max(0, this.time - 6);
+        beep(220,0.08);
+        // empurra o jogador
+        this.player.x = Math.max(this.player.r, 40);
+        this.player.y = height/2;
+      }
+    }
+    // bônus
+    for(const b of this.bonuses){
+      if(distance({x:this.player.x,y:this.player.y},b) < this.player.r + b.size/2){
+        this.time += 8; // ganha 8s
+        beep(880,0.08);
+        // remove bônus
+        this.bonuses = this.bonuses.filter(x=>x!==b);
+      }
+    }
+  }
+
+  draw(){
+    // fundo
+    ctx.clearRect(0,0,width,height);
+    // desenho simples de cenário (ondas, nuvens)
+    drawWaves();
+    // entidades
+    for(const o of this.obstacles) o.draw();
+    for(const b of this.bonuses) b.draw();
+    for(const t of this.tokens) t.draw();
+    this.player.draw();
+    // HUD no canvas (opcional)
+    ctx.save();
+    ctx.fillStyle='rgba(0,0,0,0.12)';
+    ctx.fillRect(8,8,220,46);
+    ctx.fillStyle='#ffffff';
+    ctx.font='14px Inter, Arial';
+    ctx.fillText(`Nível ${this.levelIndex+1} • ${LEVELS[this.levelIndex].name}`, 16, 28);
+    ctx.fillStyle='#dbeafe';
+    ctx.font='12px Inter, Arial';
+    ctx.fillText(`Tokens coletados: ${this.collectedThisLevel}/${this.tokenGoal}`, 16, 44);
+    ctx.restore();
+  }
+
+  showQuestion(token){
+    const lvl = LEVELS[token.levelIndex];
+    const qObj = lvl.questions[token.questionIndex];
+    qTitle.textContent = `Pergunta — ${lvl.name}`;
+    qBody.textContent = qObj.q;
+    qInfo.textContent = `ODS: ${lvl.name}`;
+    answersDiv.innerHTML = '';
+    qObj.choices.forEach((c,i)=>{
+      const btn = document.createElement('button');
+      btn.className = 'answer';
+      btn.textContent = String.fromCharCode(65+i)+'. '+c;
+      btn.addEventListener('click', ()=>this.handleAnswer(token, i===qObj.a));
+      answersDiv.appendChild(btn);
+    });
+    // exibir modal
+    modalBack.style.display = 'flex';
+    modalBack.setAttribute('aria-hidden','false');
+    skipBtn.onclick = ()=>{ this.handleSkip(token); };
+  }
+
+  handleAnswer(token, correct){
+    modalBack.style.display='none';
+    modalBack.setAttribute('aria-hidden','true');
+    if(correct){
+      // recompensa
+      this.score += 100;
+      this.time += 6;
+      this.collectedThisLevel++;
+      scoreLabel.textContent = this.score;
+      beep(880,0.09);
+    } else {
+      // penalidade
+      this.time = Math.max(0, this.time - 10);
+      this.score = Math.max(0, this.score - 30);
+      scoreLabel.textContent = this.score;
+      beep(180,0.12);
+    }
+    // ver se concluiu nível
+    if(this.collectedThisLevel >= this.tokenGoal){
+      this.advanceLevel();
+    } else {
+      // retoma jogo
+      this.running = true;
+      requestAnimationFrame(()=>this.loop());
+    }
+  }
+
+  handleSkip(token){
+    // Skip penaliza tempo
+    modalBack.style.display='none';
+    modalBack.setAttribute('aria-hidden','true');
+    this.time = Math.max(0, this.time - 8);
+    this.running = true;
+    requestAnimationFrame(()=>this.loop());
+  }
+
+  advanceLevel(){
+    // passar para próximo nível (se houver)
+    beep(660,0.12);
+    if(this.levelIndex < LEVELS.length - 1){
+      this.levelIndex++;
+      this.spawnEntities();
+      levelLabel.textContent = this.levelIndex+1;
+      // reposiciona jogador
+      this.player.x = width*0.12; this.player.y = height/2;
+      this.running = true;
+      requestAnimationFrame(()=>this.loop());
+    } else {
+      // venceu o jogo
+      this.endGame(true);
+    }
+  }
+
+  endGame(won=false){
+    this.running = false;
+    modalBack.style.display='flex';
+    modalBack.setAttribute('aria-hidden','false');
+    qTitle.textContent = won ? 'Parabéns — Jogo concluído!' : 'Tempo esgotado';
+    qBody.textContent = won ? `Você completou todos os níveis! Pontos finais: ${this.score}` : `Seu tempo terminou. Pontos: ${this.score}`;
+    answersDiv.innerHTML = '';
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.textContent = 'Reiniciar';
+    btn.addEventListener('click', ()=>{ modalBack.style.display='none'; modalBack.setAttribute('aria-hidden','true'); this.reset(); this.start(); });
+    answersDiv.appendChild(btn);
+  }
+}
+
+// auxiliar: desenhar ondas / cor de fundo relacionado ao nível
+function drawWaves(){
+  const lvl = game ? LEVELS[game.levelIndex] : LEVELS[0];
+  // grade de fundo suave
+  for(let i=0;i<6;i++){
+    ctx.fillStyle = `rgba(255,255,255,${0.01*(6-i)})`;
+    ctx.fillRect(0, i*70 + 360, width, 4);
+  }
+  // grande onda ou elemento que remeta ao ODS
+  ctx.save();
+  ctx.globalAlpha = 0.06;
+  ctx.fillStyle = lvl.color;
+  ctx.beginPath();
+  ctx.moveTo(0,height*0.78);
+  for(let x=0;x<=width;x+=20){
+    ctx.lineTo(x, height*0.78 + Math.sin((x/80)+performance.now()/500)*18 );
+  }
+  ctx.lineTo(width, height); ctx.lineTo(0,height); ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+// Instancia do jogo
+game = new Game();
+
+// Entrada do jogador (keyboard)
+const keys = {ArrowUp:false,ArrowDown:false,ArrowLeft:false,ArrowRight:false, w:false,a:false,s:false,d:false};
+window.addEventListener('keydown',(e)=>{
+  const k = e.key;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(k)) e.preventDefault();
+  if(k==='Escape'){ game.pause(); }
+  if(k==='w' || k==='W') keys.w = true;
+  if(k==='a' || k==='A') keys.a = true;
+  if(k==='s' || k==='S') keys.s = true;
+  if(k==='d' || k==='D') keys.d = true;
+  if(k==='ArrowUp') keys.ArrowUp=true;
+  if(k==='ArrowDown') keys.ArrowDown=true;
+  if(k==='ArrowLeft') keys.ArrowLeft=true;
+  if(k==='ArrowRight') keys.ArrowRight=true;
+  updatePlayerVelocity();
+});
+window.addEventListener('keyup',(e)=>{
+  const k = e.key;
+  if(k==='w' || k==='W') keys.w = false;
+  if(k==='a' || k==='A') keys.a = false;
+  if(k==='s' || k==='S') keys.s = false;
+  if(k==='d' || k==='D') keys.d = false;
+  if(k==='ArrowUp') keys.ArrowUp=false;
+  if(k==='ArrowDown') keys.ArrowDown=false;
+  if(k==='ArrowLeft') keys.ArrowLeft=false;
+  if(k==='ArrowRight') keys.ArrowRight=false;
+  updatePlayerVelocity();
+});
+
+function updatePlayerVelocity(){
+  const p = game.player;
+  p.vx = 0; p.vy = 0;
+  // combinações
+  if(keys.ArrowLeft || keys.a) p.vx = -p.speed;
+  if(keys.ArrowRight || keys.d) p.vx = p.speed;
+  if(keys.ArrowUp || keys.w) p.vy = -p.speed;
+  if(keys.ArrowDown || keys.s) p.vy = p.speed;
+  // ajusta velocidade diagonal para manter magnitude
+  if(p.vx !== 0 && p.vy !== 0){
+    p.vx *= Math.SQRT1_2; p.vy *= Math.SQRT1_2;
+  }
+}
+
+// Botões UI
+startBtn.addEventListener('click', ()=>{
+  game.reset();
+  game.start();
+});
+pauseBtn.addEventListener('click', ()=>{
+  game.pause();
+  pauseBtn.textContent = game.paused ? 'Retomar' : 'Pausar';
+});
+
+// Redimensionamento responsivo
+window.addEventListener('resize', ()=>{
+  // opcional: ajustar escala do canvas em mobile (mantive fixo para simplicidade)
+});
+
+// inicialização
+(function initDemo(){
+  // apenas desenhar tela inicial
+  game.draw();
+})();
+
+</script>
+</body>
+</html>
